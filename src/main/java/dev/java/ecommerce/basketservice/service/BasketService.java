@@ -2,6 +2,7 @@ package dev.java.ecommerce.basketservice.service;
 
 import dev.java.ecommerce.basketservice.client.response.PlatziProductResponse;
 import dev.java.ecommerce.basketservice.controller.request.BasketRequest;
+import dev.java.ecommerce.basketservice.controller.request.PaymentRequest;
 import dev.java.ecommerce.basketservice.entity.Basket;
 import dev.java.ecommerce.basketservice.entity.Product;
 import dev.java.ecommerce.basketservice.entity.Status;
@@ -76,6 +77,16 @@ public class BasketService {
 
         existingBasket.setProducts(products);
         existingBasket.calculateTotalPrice();
+        return basketRepository.save(existingBasket);
+    }
+
+    public Basket payBasket(String basketId, PaymentRequest request) {
+        Basket existingBasket = getBasketById(basketId);
+        if (existingBasket.getStatus() != Status.OPEN) {
+            throw new IllegalStateException("Only open baskets can be paid");
+        }
+        existingBasket.setPaymentMethod(request.getPaymentMethod());
+        existingBasket.setStatus(Status.SOLD);
         return basketRepository.save(existingBasket);
     }
 }
