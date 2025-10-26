@@ -54,4 +54,28 @@ public class BasketService {
         return basketRepository.save(basket);
     }
 
+    public Basket updateBasket(String basketId, BasketRequest request) {
+        Basket existingBasket = getBasketById(basketId);
+
+        if (existingBasket.getStatus() != Status.OPEN) {
+            throw new IllegalStateException("Only open baskets can be updated");
+        }
+
+        List<Product> products = new ArrayList<>();
+        request.products().forEach(productRequest -> {
+            PlatziProductResponse platziProductResponse = productService.getProductById(productRequest.id());
+
+            products.add(Product.builder()
+                    .id(platziProductResponse.id())
+                    .title(platziProductResponse.title())
+                    .price(platziProductResponse.price())
+                    .quantity(productRequest.quantity())
+                    .build());
+
+        });
+
+        existingBasket.setProducts(products);
+        existingBasket.calculateTotalPrice();
+        return basketRepository.save(existingBasket);
+    }
 }
