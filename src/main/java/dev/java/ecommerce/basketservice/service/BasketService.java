@@ -6,6 +6,8 @@ import dev.java.ecommerce.basketservice.controller.request.PaymentRequest;
 import dev.java.ecommerce.basketservice.entity.Basket;
 import dev.java.ecommerce.basketservice.entity.Product;
 import dev.java.ecommerce.basketservice.entity.Status;
+import dev.java.ecommerce.basketservice.exceptions.BusinessException;
+import dev.java.ecommerce.basketservice.exceptions.DataNotFoundException;
 import dev.java.ecommerce.basketservice.repository.BasketRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,16 +24,29 @@ public class BasketService {
 
     public Basket getBasketById(String id) {
         return basketRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Basket not found"));
+                .orElseThrow(() -> new DataNotFoundException("Basket not found"));
     }
 
     public Basket createBasket(BasketRequest basketRequest) {
 
         basketRepository.findByClientAndStatus(basketRequest.clientId(), Status.OPEN)
                 .ifPresent(existingBasket -> {
-                    throw new IllegalStateException("Client already has an open basket");
+                    throw new BusinessException("Client already has an open basket");
                 });
 
+        List<Product> products = getProducts(basketRequest);
+
+        Basket basket = Basket.builder()
+                .client(basketRequest.clientId())
+                .status(Status.OPEN)
+                .products(products)
+                .build();
+
+        basket.calculateTotalPrice();
+        return basketRepository.save(basket);
+    }
+
+    private List<Product> getProducts(BasketRequest basketRequest) {
         List<Product> products = new ArrayList<>();
         basketRequest.products().forEach(productRequest -> {
             PlatziProductResponse platziProductResponse = productService.getProductById(productRequest.id());
@@ -44,15 +59,7 @@ public class BasketService {
                     .build());
 
         });
-
-        Basket basket = Basket.builder()
-                .client(basketRequest.clientId())
-                .status(Status.OPEN)
-                .products(products)
-                .build();
-
-        basket.calculateTotalPrice();
-        return basketRepository.save(basket);
+        return products;
     }
 
     public Basket updateBasket(String basketId, BasketRequest request) {
@@ -62,18 +69,7 @@ public class BasketService {
             throw new IllegalStateException("Only open baskets can be updated");
         }
 
-        List<Product> products = new ArrayList<>();
-        request.products().forEach(productRequest -> {
-            PlatziProductResponse platziProductResponse = productService.getProductById(productRequest.id());
-
-            products.add(Product.builder()
-                    .id(platziProductResponse.id())
-                    .title(platziProductResponse.title())
-                    .price(platziProductResponse.price())
-                    .quantity(productRequest.quantity())
-                    .build());
-
-        });
+        List<Product> products = getProducts(request);
 
         existingBasket.setProducts(products);
         existingBasket.calculateTotalPrice();
